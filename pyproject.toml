@@ -1,7 +1,7 @@
 [project]
 name = "german-tts"
-version = "0.1.0"
-description = "Add your description here"
+version = "1.0.0"
+description = "This project fine-tunes Microsoft's SpeechT5 model for German Text-to-Speech  using the VoxPopuli dataset"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
@@ -13,4 +13,9 @@ dependencies = [
     "timm>=1.0.20",
     "transformers>=4.57.1",
     "wandb>=0.22.2",
+]
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.2.0",
 ]
