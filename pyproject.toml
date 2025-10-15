@@ -1,0 +1,15 @@
+[project]
+name = "german-tts"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "accelerate>=1.10.1",
+    "datasets==3.6.0",
+    "soundfile>=0.13.1",
+    "speechbrain>=1.0.3",
+    "timm>=1.0.20",
+    "transformers>=4.57.1",
+    "wandb>=0.22.2",
+]
