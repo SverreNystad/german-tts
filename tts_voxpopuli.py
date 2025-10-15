@@ -1,26 +1,20 @@
 # German TTS with VoxPopuli and Audio Transformers
-from huggingface_hub import notebook_login, login
-from google.colab import userdata
+from huggingface_hub import login
 import wandb
 
 from datasets import load_dataset, Audio
 from collections import defaultdict
-import matplotlib.pyplot as plt
 import os
 import torch
 from speechbrain.pretrained import EncoderClassifier
 from dataclasses import dataclass
 from typing import Any, Dict, List, Union
-import matplotlib.pyplot as plt
 
-from IPython.display import Audio
 from functools import partial
 from transformers import SpeechT5Processor
 from transformers import SpeechT5ForTextToSpeech
 from transformers import Seq2SeqTrainingArguments
 from transformers import Seq2SeqTrainer
-from transformers import SpeechT5ForTextToSpeech
-from transformers import SpeechT5HifiGan
 
 # Configure environment variables for authentication
 HF_TOKEN = os.getenv("HF_TOKEN")
