@@ -1,11 +1,4 @@
-# %% [markdown]
-# # German TTS with VoxPopuli and Audio Transformers
-
-# %%
-%pip install transformers "datasets==3.6.0" soundfile speechbrain accelerate wandb
-
-
-# %%
+# German TTS with VoxPopuli and Audio Transformers
 from huggingface_hub import notebook_login, login
 from google.colab import userdata
 import wandb
@@ -29,40 +22,35 @@ from transformers import Seq2SeqTrainer
 from transformers import SpeechT5ForTextToSpeech
 from transformers import SpeechT5HifiGan
 
-
-# %%
-HF_TOKEN = os.getenv('HF_TOKEN')
-WANDB_API_KEY= os.getenv('WANDB_API_KEY')
+# Configure environment variables for authentication
+HF_TOKEN = os.getenv("HF_TOKEN")
+WANDB_API_KEY = os.getenv("WANDB_API_KEY")
 LANGUAGE = "de"
 
 if WANDB_API_KEY is None or HF_TOKEN is None:
-  print("Please set the HF_TOKEN and WANDB_API_KEY environment variables.")
-  
+    print("Please set the HF_TOKEN and WANDB_API_KEY environment variables.")
 
-os.environ["WANDB_PROJECT"]="TTS-voxpopuli"
+
+os.environ["WANDB_PROJECT"] = "TTS-voxpopuli"
 
 wandb.login(key=WANDB_API_KEY)
 login(HF_TOKEN)
 
-# %%
-dataset = load_dataset("facebook/voxpopuli", LANGUAGE, split="train", trust_remote_code=True)
-len(dataset)
+dataset = load_dataset(
+    "facebook/voxpopuli", LANGUAGE, split="train", trust_remote_code=True
+)
 
-# %%
+
 dataset = dataset.cast_column("audio", Audio(sampling_rate=16000))
 
-# %%
 
 checkpoint = "microsoft/speecht5_tts"
 processor = SpeechT5Processor.from_pretrained(checkpoint)
 
-# %%
+
 tokenizer = processor.tokenizer
 
-# %%
-dataset[0]
 
-# %%
 def extract_all_chars(batch):
     all_text = " ".join(batch["normalized_text"])
     vocab = list(set(all_text))
@@ -80,13 +68,8 @@ vocabs = dataset.map(
 dataset_vocab = set(vocabs["vocab"][0])
 tokenizer_vocab = {k for k, _ in tokenizer.get_vocab().items()}
 
-# %%
-dataset_vocab - tokenizer_vocab
+print(dataset_vocab - tokenizer_vocab)
 
-# %% [markdown]
-# The vocabulary of a language might not be in the tokenizer of a TTS model. In this notebook we will use the [VoxPopuli](https://huggingface.co/datasets/facebook/voxpopuli) dataset to finetune a TTS model for German. Therefore one must find replacements of tokens that are not in the tokenizer.
-
-# %%
 replacements = [
     ("ß", "ss"),
     ("ä", "ae"),
@@ -103,35 +86,17 @@ def cleanup_text(inputs):
 
 dataset = dataset.map(cleanup_text)
 
-# %%
+
 speaker_counts = defaultdict(int)
 
 for speaker_id in dataset["speaker_id"]:
     speaker_counts[speaker_id] += 1
 
-# %%
 
-
-plt.figure()
-plt.hist(speaker_counts.values(), bins=20)
-plt.ylabel("Speakers")
-plt.xlabel("Examples")
-plt.show()
-
-# %%
 def select_speaker(speaker_id):
     return 100 <= speaker_counts[speaker_id] <= 400
 
 
-dataset = dataset.filter(select_speaker, input_columns=["speaker_id"])
-
-# %%
-len(set(dataset["speaker_id"]))
-
-# %%
-len(dataset)
-
-# %%
 spk_model_name = "speechbrain/spkrec-xvect-voxceleb"
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -149,7 +114,7 @@ def create_speaker_embedding(waveform):
         speaker_embeddings = speaker_embeddings.squeeze().cpu().numpy()
     return speaker_embeddings
 
-# %%
+
 def prepare_dataset(example):
     audio = example["audio"]
 
@@ -168,35 +133,16 @@ def prepare_dataset(example):
 
     return example
 
-# %%
-processed_example = prepare_dataset(dataset[0])
-list(processed_example.keys())
 
-# %%
-processed_example["speaker_embeddings"].shape
-
-# %%
-
-plt.figure()
-plt.imshow(processed_example["labels"].T)
-plt.show()
-
-# %%
-dataset = dataset.map(prepare_dataset, remove_columns=dataset.column_names)
-
-# %%
 def is_not_too_long(input_ids):
     input_length = len(input_ids)
     return input_length < 200
 
 
+dataset = dataset.filter(select_speaker, input_columns=["speaker_id"])
+dataset = dataset.map(prepare_dataset, remove_columns=dataset.column_names)
 dataset = dataset.filter(is_not_too_long, input_columns=["input_ids"])
-len(dataset)
-
-# %%
 dataset = dataset.train_test_split(test_size=0.1)
-
-# %%
 
 
 @dataclass
@@ -242,14 +188,11 @@ class TTSDataCollatorWithPadding:
 
         return batch
 
-# %%
+
 data_collator = TTSDataCollatorWithPadding(processor=processor)
 
-# %%
 
 model = SpeechT5ForTextToSpeech.from_pretrained(checkpoint)
-
-# %%
 
 
 # disable cache during training since it's incompatible with gradient checkpointing
@@ -257,8 +200,6 @@ model.config.use_cache = False
 
 # set language and task for generation and re-enable cache
 model.generate = partial(model.generate, use_cache=True)
-
-# %%
 
 
 training_args = Seq2SeqTrainingArguments(
@@ -284,7 +225,7 @@ training_args = Seq2SeqTrainingArguments(
     push_to_hub=True,
 )
 
-# %%
+
 trainer = Seq2SeqTrainer(
     args=training_args,
     model=model,
@@ -294,34 +235,8 @@ trainer = Seq2SeqTrainer(
     tokenizer=processor,
 )
 
-# %%
+
 trainer.train()
 
-# %%
+
 trainer.push_to_hub()
-
-# %%
-
-model = SpeechT5ForTextToSpeech.from_pretrained(
-    f"SverreNystad/speecht5_finetuned_voxpopuli_{LANGUAGE}"
-)
-
-# %%
-example = dataset["test"][1]
-speaker_embeddings = torch.tensor(example["speaker_embeddings"]).unsqueeze(0)
-
-# %%
-text = "Ich bin ein Berliner! Meine Name bin Sverre Nystad. Ich libe Deutch!"
-
-# %%
-inputs = processor(text=text, return_tensors="pt")
-
-# %%
-
-vocoder = SpeechT5HifiGan.from_pretrained("microsoft/speecht5_hifigan")
-speech = model.generate_speech(inputs["input_ids"], speaker_embeddings, vocoder=vocoder)
-
-# %%
-Audio(speech.numpy(), rate=16000)
-
-
